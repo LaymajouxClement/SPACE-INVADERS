@@ -12,7 +12,7 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 #include <SDL2/SDL_ttf.h>
-
+#include <SDL2/SDL_mixer.h>
 
 #include "figure.h"
 #include "ship.h"
@@ -48,6 +48,7 @@ static struct{
 	SDL_Color	 	colorR;
 	SDL_Rect		r;
 
+	int 			gameState;
 	int				scoreA;
 	int				scoreB;
 	int				hiScore;
@@ -86,6 +87,7 @@ int AppNew(void){
 	app.scoreB = 0;
 	app.hiScore = 0;
 	app.timer = 0;
+	app.gameState = 0;
 
 	if (TTF_Init() == -1) {
 		fprintf(stderr, "TTF_Init() failed :%s\n", TTF_GetError());
@@ -100,7 +102,6 @@ int AppNew(void){
 		fprintf(stderr, "SDL video init failed ! %s\n", SDL_GetError());
 		return EXIT_FAILURE;
 	}
-
 
 	//Main window------------------------------------------------------------------------------//
 	 app.pWindow = SDL_CreateWindow(
@@ -220,11 +221,10 @@ int AppRun(void){
 	int quit=0;
 	SDL_Event event;
 	do{
-
 		while(SDL_PollEvent(&event)){
 			switch(event.type){
 			case SDL_MOUSEMOTION:
-				if((MAIN_WINDOW_PADDING_HRZ+(SPACESHIP_SIZE/2) < event.motion.x) && ((event.motion.x+(SPACESHIP_SIZE)/2) < (MAIN_WINDOW_WIDTH - MAIN_WINDOW_PADDING_HRZ)) && ContainerCard(app.pShips)){
+				if((MAIN_WINDOW_PADDING_HRZ+(SPACESHIP_SIZE/2) < event.motion.x) && ((event.motion.x+(SPACESHIP_SIZE)/2) < (MAIN_WINDOW_WIDTH - MAIN_WINDOW_PADDING_HRZ)) && ContainerCard(app.pShips) && app.gameState != 0){
 					ShipMoveToXY(ContainerGetback(app.pShips),event.motion.x,0);
 				}
 				break;
@@ -234,17 +234,19 @@ int AppRun(void){
 			case SDL_KEYUP:
 				if(event.key.keysym.sym==SDLK_ESCAPE){
 					quit=1;
-				}else if(event.key.keysym.sym==SDLK_SPACE){
+				}else if(event.key.keysym.sym==SDLK_SPACE && app.gameState != 0){
 					if(app.nTimerID==-1) {
 						app.nTimerID = SDL_AddTimer(MAIN_ANIMATION_TICK, _AppAnimateCallback, NULL);
 					}else{
 						_AppMessageBox("PAUSE",0,MAIN_WINDOW_HEIGHT/2,-1);
 						SDL_RemoveTimer(app.nTimerID); app.nTimerID=-1;
 					}
+				}else if(event.key.keysym.sym==SDLK_TAB){
+					app.gameState =1;
 				}
 				break;
 			case SDL_MOUSEBUTTONDOWN:
-				if(event.button.button == SDL_BUTTON_LEFT  && ContainerCard(app.pShips)){
+				if(event.button.button == SDL_BUTTON_LEFT  && ContainerCard(app.pShips) && app.gameState != 0){
 					if(ContainerCard(app.pShipRockets) < 3){
 						SDL_Rect r = ShipGetCoordinates(ContainerGetback(app.pShips));
 						ContainerPushback(app.pShipRockets, RocketNew(r.x+(r.w/2),
@@ -310,7 +312,12 @@ Uint32 _AppAnimateCallback(Uint32 interval, void*pParam) {
 
 
 	///Check game state-------------------------------------------------------------------------------/
-
+	if(app.gameState == 0){
+		SDL_RenderCopy(app.pRenderer, app.pTextureBkgnd, NULL, NULL);
+		_AppMessageBox("SPACE IVADERS",0,MAIN_WINDOW_HEIGHT/2-SPACESHIP_SIZE,-1);
+		SDL_RenderPresent(app.pRenderer);
+		return interval;
+	}
 	if(!ContainerCard(app.pShips)){
 		_AppMessageBox("GAME OVER",0,MAIN_WINDOW_HEIGHT/2,-1);
 		_AppMessageBox("YOUR SCORE:",MAIN_WINDOW_WIDTH/4,MAIN_WINDOW_HEIGHT/2+ MAIN_WINDOW_HEIGHT/5,1);
