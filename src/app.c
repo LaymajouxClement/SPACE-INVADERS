@@ -12,7 +12,7 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 #include <SDL2/SDL_ttf.h>
-#include <SDL2/SDL_mixer.h>
+
 
 #include "figure.h"
 #include "ship.h"
@@ -61,12 +61,18 @@ enum APP_STATUS_FLAGS{
 	ST_ALL_CLEARED 	= 0x00000000,
 	ST_ALL_SETTED 	= 0xFFFFFFFF,
 	ST_APP_INITIED	= 0x00000001,
+	ST_APP_PAUSED	= 0x00000002,
 };
 
 #define SetInitied()	mBitsSet(app.uStatus,ST_APP_INITIED)
 #define IsInitied()		mIsBitsSet(app.uStatus,ST_APP_INITIED)
 #define IsNotInitied()	mIsBitsClr(app.uStatus,ST_APP_INITIED)
 
+#define SetPaused()		mBitsSet(app.uStatus,ST_APP_PAUSED)
+#define ClrPaused()		mBitsClr(app.uStatus,ST_APP_PAUSED)
+#define TglPaused()		mBitsTgl(app.uStatus,ST_APP_PAUSED)
+#define IsPaused()		mIsBitsSet(app.uStatus,ST_APP_PAUSED)
+#define IsRun()			mIsBitsClr(app.uStatus,ST_APP_PAUSED)
 
 int AppNew(void){
 
@@ -102,6 +108,7 @@ int AppNew(void){
 		fprintf(stderr, "SDL video init failed ! %s\n", SDL_GetError());
 		return EXIT_FAILURE;
 	}
+
 
 	//Main window------------------------------------------------------------------------------//
 	 app.pWindow = SDL_CreateWindow(
@@ -235,12 +242,7 @@ int AppRun(void){
 				if(event.key.keysym.sym==SDLK_ESCAPE){
 					quit=1;
 				}else if(event.key.keysym.sym==SDLK_SPACE && app.gameState != 0){
-					if(app.nTimerID==-1) {
-						app.nTimerID = SDL_AddTimer(MAIN_ANIMATION_TICK, _AppAnimateCallback, NULL);
-					}else{
-						_AppMessageBox("PAUSE",0,MAIN_WINDOW_HEIGHT/2,-1);
-						SDL_RemoveTimer(app.nTimerID); app.nTimerID=-1;
-					}
+					TglPaused();
 				}else if(event.key.keysym.sym==SDLK_TAB){
 					app.gameState =1;
 				}
@@ -308,13 +310,16 @@ int AppDel(void){
 
 
 Uint32 _AppAnimateCallback(Uint32 interval, void*pParam) {
+	if(IsPaused()){
+		_AppMessageBox("PAUSE",0,MAIN_WINDOW_HEIGHT/2,-1);
+		return interval;
+	}
+
 	SDL_Rect alienPos;
-
-
 	///Check game state-------------------------------------------------------------------------------/
 	if(app.gameState == 0){
 		SDL_RenderCopy(app.pRenderer, app.pTextureBkgnd, NULL, NULL);
-		_AppMessageBox("SPACE IVADERS",0,MAIN_WINDOW_HEIGHT/2-SPACESHIP_SIZE,-1);
+		_AppMessageBox("SPACE INVADERS",0,MAIN_WINDOW_HEIGHT/2-SPACESHIP_SIZE,-1);
 		SDL_RenderPresent(app.pRenderer);
 		return interval;
 	}

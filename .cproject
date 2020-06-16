@@ -84,8 +84,6 @@
                                     <listOptionValue builtIn="false" value="SDL2_image"/>
                                     									
                                     <listOptionValue builtIn="false" value="SDL2_ttf"/>
-                                    									
-                                    <listOptionValue builtIn="false" value="SDL2_mixer"/>
                                     								
                                 </option>
                                 								
