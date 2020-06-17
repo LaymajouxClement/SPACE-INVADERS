@@ -77,6 +77,8 @@
                                     									
                                     <listOptionValue builtIn="false" value="mingw32"/>
                                     									
+                                    <listOptionValue builtIn="false" value="Comdlg32"/>
+                                    									
                                     <listOptionValue builtIn="false" value="SDL2main"/>
                                     									
                                     <listOptionValue builtIn="false" value="SDL2"/>
@@ -84,6 +86,8 @@
                                     <listOptionValue builtIn="false" value="SDL2_image"/>
                                     									
                                     <listOptionValue builtIn="false" value="SDL2_ttf"/>
+                                    									
+                                    <listOptionValue builtIn="false" value="SDL2_mixer"/>
                                     								
                                 </option>
                                 								

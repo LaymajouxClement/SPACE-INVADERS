@@ -48,6 +48,8 @@
 #define FONT_SCORE_X_P2						(980)
 #define FONT_HIGHSCORE_X					(550)
 
+#define ROCKET_SOUND				"./Resources/Sounds/shoot.wav"
+
 #define mBitsSet(f,m)			((f)|=(m))
 #define mBitsClr(f,m)			((f)&=(~(m)))
 #define mBitsTgl(f,m)			((f)^=(m))
@@ -58,3 +60,4 @@
 int AppNew(void);
 int AppRun(void);
 int AppDel(void);
+int MenuRun(void);

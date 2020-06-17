@@ -385,5 +385,16 @@ void*ContainerIsElem(s_container* pContainer, void*pElem){
 
 int ContainerCard(s_container* pContainer) { return pContainer->nCard; }
 
+void*ContainerFlush(s_container*pContainer) {
+	assert(pContainer != NULL);
+	while (pContainer->pHead) {
+		pContainer->pHead = NodeDelReturnNext(pContainer->pHead, pContainer->pDelElemFunc, true);
+		pContainer->nCard--;
+	}
+	assert(pContainer->nCard == 0);
+	pContainer->pTail = NULL;
+	return NULL;
+}
+
 
 

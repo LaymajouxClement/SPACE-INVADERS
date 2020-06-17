@@ -41,3 +41,5 @@ void*ContainerIsElem(s_container* pContainer, void*pElem);
 
 int ContainerCard(s_container* pContainer);
 
+void*ContainerFlush(s_container*pContainer);
+

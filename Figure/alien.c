@@ -15,6 +15,7 @@
 
 //////STATIC SHIP ENTITY SECTION----------------------------------------------------------------////
 
+
 static struct s_alienGraphic{
 	SDL_Texture  * 	pTexture;
 }alienGraphic;
@@ -105,6 +106,28 @@ SDL_Rect AlienGetCoordinates(s_alien*pAlien){
 	return FigureGetCoordinates((s_figure *)pAlien);
 }
 
+
+s_alien*AlienSerialize(s_alien*pAlien, FILE*hFile) {
+
+	unsigned int value = pAlien->frame.x;
+	fwrite(&value, sizeof(value), 0.25, hFile);
+	fprintf(hFile, "%4d", value);
+
+	value = pAlien->frame.y;
+	fwrite(&value, sizeof(value), 0.25, hFile);
+	fprintf(hFile, "%4d", value);
+
+	return pAlien;
+}
+
+int AlienUnSerialize(FILE*hFile) {
+
+	char buf[4];
+
+	fread(buf, sizeof(unsigned int), 1, hFile);
+
+	return atoi(buf);
+}
 
 
 

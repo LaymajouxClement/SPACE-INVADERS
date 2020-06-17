@@ -8,10 +8,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <windows.h>
+#include <commdlg.h>
 #define SDL_MAIN_HANDLED
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 #include <SDL2/SDL_ttf.h>
+#include <SDL2/SDL_mixer.h>
 
 
 #include "figure.h"
@@ -21,10 +24,13 @@
 #include "app.h"
 #include "rocket.h"
 
+
 //Private function prototypes--------------------------------------------//
 Uint32 _AppAnimateCallback(Uint32 interval, void*pParam);
 int _AppMessageBox(char*msg, int xpos, int ypos, int var);
 int _AppGameUpdate(void * figure);
+void _App_SaveProc(void);
+void _App_LoadProc(void);
 
 static struct{
 	Uint32			uStatus;
@@ -34,6 +40,7 @@ static struct{
 	SDL_Renderer * 	pRenderer;
 	SDL_Texture	 *	pTextureBkgnd;
 	SDL_TimerID		nTimerID;
+	HWND			hMainDlg;
 
 	//s_ship		 *	pShip; // to remove
 
@@ -47,6 +54,10 @@ static struct{
 	SDL_Surface	 *	pString;
 	SDL_Color	 	colorR;
 	SDL_Rect		r;
+	Mix_Chunk 	 *	wave;
+
+	unsigned int	fileTypeID_HIGH;
+	unsigned int	fileTypeID_LOW;
 
 	int 			gameState;
 	int				scoreA;
@@ -62,6 +73,7 @@ enum APP_STATUS_FLAGS{
 	ST_ALL_SETTED 	= 0xFFFFFFFF,
 	ST_APP_INITIED	= 0x00000001,
 	ST_APP_PAUSED	= 0x00000002,
+	ST_APP_DIRTY	= 0x00000004,
 };
 
 #define SetInitied()	mBitsSet(app.uStatus,ST_APP_INITIED)
@@ -73,6 +85,10 @@ enum APP_STATUS_FLAGS{
 #define TglPaused()		mBitsTgl(app.uStatus,ST_APP_PAUSED)
 #define IsPaused()		mIsBitsSet(app.uStatus,ST_APP_PAUSED)
 #define IsRun()			mIsBitsClr(app.uStatus,ST_APP_PAUSED)
+
+#define SetAppDirty()				mBitsSet(app.uStatus, ST_APP_DIRTY)
+#define ClrAppDirty()				mBitsClr(app.uStatus, ST_APP_DIRTY)
+#define IsAppDirty()				mIsBitsSet(app.uStatus, ST_APP_DIRTY)
 
 int AppNew(void){
 
@@ -94,6 +110,10 @@ int AppNew(void){
 	app.hiScore = 0;
 	app.timer = 0;
 	app.gameState = 0;
+	app.wave = NULL;
+
+	app.fileTypeID_HIGH = 0x11092001;
+	app.fileTypeID_LOW = 0x13062001;
 
 	if (TTF_Init() == -1) {
 		fprintf(stderr, "TTF_Init() failed :%s\n", TTF_GetError());
@@ -104,11 +124,15 @@ int AppNew(void){
 		fprintf(stderr, "TTF_OpenFont() failed : %s\n", TTF_GetError());
 		return EXIT_FAILURE;
 	}
-	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) {
+	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_AUDIO) != 0) {
 		fprintf(stderr, "SDL video init failed ! %s\n", SDL_GetError());
 		return EXIT_FAILURE;
 	}
-
+	if( Mix_OpenAudio( 22050, MIX_DEFAULT_FORMAT, 2, 4096 ) == -1 ){
+		return EXIT_FAILURE;
+	}
+	app.wave = Mix_LoadWAV(ROCKET_SOUND);
+	if (app.wave == NULL)return EXIT_FAILURE;
 
 	//Main window------------------------------------------------------------------------------//
 	 app.pWindow = SDL_CreateWindow(
@@ -212,13 +236,9 @@ int AppNew(void){
 	}
 
 
-
-
 	//Animation timer start up------------------------------------------------------------------//
 	app.nTimerID = SDL_AddTimer(MAIN_ANIMATION_TICK, _AppAnimateCallback, NULL);
 
-	//Set app initialized state-----------------------------------------------------------------//
-	SetInitied();
 	return 0;
 }
 
@@ -243,8 +263,12 @@ int AppRun(void){
 					quit=1;
 				}else if(event.key.keysym.sym==SDLK_SPACE && app.gameState != 0){
 					TglPaused();
-				}else if(event.key.keysym.sym==SDLK_TAB){
-					app.gameState =1;
+				}else if(event.key.keysym.sym==SDLK_s && app.gameState != 0){
+					SetPaused();
+					_App_SaveProc();
+				}else if(event.key.keysym.sym==SDLK_l && app.gameState != 0){
+					SetPaused();
+					_App_LoadProc();
 				}
 				break;
 			case SDL_MOUSEBUTTONDOWN:
@@ -260,6 +284,7 @@ int AppRun(void){
 							0,
 							0
 						));
+						if ( Mix_PlayChannel(-1, app.wave, 0) == -1 )return EXIT_FAILURE;
 					}
 				}
 				break;
@@ -278,7 +303,10 @@ int AppDel(void){
 
 	//Figure resources releasing---------------------------------------------------------------//
 	//app.pShip=ShipDel(app.pShip);
-
+	if(app.wave){
+		Mix_FreeChunk(app.wave);
+	}
+	Mix_CloseAudio();
 	if (app.pFont) {
 		TTF_CloseFont(app.pFont);
 		app.pFont = NULL;
@@ -319,7 +347,9 @@ Uint32 _AppAnimateCallback(Uint32 interval, void*pParam) {
 	///Check game state-------------------------------------------------------------------------------/
 	if(app.gameState == 0){
 		SDL_RenderCopy(app.pRenderer, app.pTextureBkgnd, NULL, NULL);
-		_AppMessageBox("SPACE INVADERS",0,MAIN_WINDOW_HEIGHT/2-SPACESHIP_SIZE,-1);
+		_AppMessageBox("SPACE INVADERS",0,MAIN_WINDOW_HEIGHT/4-SPACESHIP_SIZE,-1);
+		_AppMessageBox("NEW GAME",0,MAIN_WINDOW_HEIGHT/2-SPACESHIP_SIZE,-2);
+		_AppMessageBox("LOAD GAME",0,MAIN_WINDOW_HEIGHT/2,-2);
 		SDL_RenderPresent(app.pRenderer);
 		return interval;
 	}
@@ -424,6 +454,11 @@ int _AppMessageBox(char*msg, int xpos, int ypos, int var){
 		rectFin.h = MAIN_WINDOW_HEIGHT/5;
 		rectFin.w = MAIN_WINDOW_WIDTH;
 		sprintf(buf, "%s", msg);
+	}else if(var==-2){
+			rectFin.h = MAIN_WINDOW_HEIGHT/10;
+			rectFin.w = MAIN_WINDOW_WIDTH/2;
+			rectFin.x = MAIN_WINDOW_WIDTH/4;
+			sprintf(buf, "%s", msg);
 	}else{
 		sprintf(buf, "%s %03d", msg, var);
 		rectFin.h = FONT_HEIGHT;
@@ -456,4 +491,209 @@ int _AppGameUpdate(void * figure){
 
 
 	return app.scoreA;
+}
+
+
+int MenuRun(void){
+
+	int quit=0;
+	SDL_Event event;
+	do{
+		while(SDL_PollEvent(&event)){
+			switch(event.type){
+			case SDL_QUIT:
+				quit=1;
+				break;
+			case SDL_KEYUP:
+				if(event.key.keysym.sym==SDLK_ESCAPE){
+					quit=1;
+				}else if(event.key.keysym.sym==SDLK_TAB){
+					app.gameState =1;
+					SetInitied();
+					//SetAppDirty();
+					return 1;
+				}
+				break;
+			default:
+				break;
+			}
+		}
+	}while(quit!=1);
+	return 0;
+
+}
+
+void _App_SaveProc(void) {
+	char buffer[512] = "*.spi";
+	char customFilter[512] = "*.spi\0";
+	OPENFILENAME ofn;
+
+	ZeroMemory(&ofn, sizeof(ofn));
+	ofn.lStructSize = sizeof(ofn);
+	ofn.hwndOwner = app.hMainDlg;
+	ofn.lpstrFile = buffer;
+	//ofn.lpstrFile[0] = '\0';
+	ofn.nMaxFile = sizeof(buffer);
+	ofn.lpstrFilter = "Space\0*.spi\0";
+	ofn.nFilterIndex = 1;
+	ofn.lpstrCustomFilter = customFilter;
+	ofn.nMaxCustFilter = sizeof(customFilter);
+	ofn.lpstrTitle = "Save container...";
+	ofn.lpstrInitialDir = "<LE CHEMIN COMPLET>\\SpaceFiles";
+	ofn.Flags = OFN_PATHMUSTEXIST | OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT;
+
+	if (GetSaveFileName(&ofn)) {
+		FILE * hFile;
+		hFile = fopen(ofn.lpstrFile, "w");
+
+		if (hFile == NULL) {
+			MessageBox(app.hMainDlg, ofn.lpstrFile, "Unable to open or create file !", MB_OK);
+			return;
+		}
+
+		unsigned int value;
+
+
+		// FileTypeID_HIGH
+		value = 0x01200911;
+		fwrite(&value, sizeof(value), 1, hFile);
+
+		// FileTypeID_LOW
+		value = 0x01200613;
+		fwrite(&value, sizeof(value), 1, hFile);
+
+		// Extension
+		fprintf(hFile, ".spi");
+
+		value = strtol("00001001", NULL, 2);
+		fwrite(&value, sizeof(value), 1, hFile);
+
+
+		value =  ContainerCard(app.pAliens);
+		fwrite(&value, sizeof(value), 1, hFile);
+
+		ContainerParse(app.pAliens, (t_ptfVV)AlienSerialize, hFile);
+
+		value =  ContainerCard(app.pShips);
+		fwrite(&value, sizeof(value), 0.25, hFile);
+		fprintf(hFile, "%4d", value);
+
+		fclose(hFile);
+		//ClrAppDirty();
+	}
+}
+
+void _App_LoadProc(void) {
+	char buffer[512] = "*.spi";
+	char customFilter[512] = "*.spi\0";
+	OPENFILENAME ofn;
+
+	ZeroMemory(&ofn, sizeof(ofn));
+	ofn.lStructSize = sizeof(ofn);
+	ofn.hwndOwner = app.hMainDlg;
+	ofn.lpstrFile = buffer;
+	//ofn.lpstrFile[0] = '\0';
+	ofn.nMaxFile = sizeof(buffer);
+	ofn.lpstrFilter = "Space\0*.spi\0";
+	ofn.nFilterIndex = 1;
+	ofn.lpstrCustomFilter = customFilter;
+	ofn.nMaxCustFilter = sizeof(customFilter);
+	ofn.lpstrTitle = "Load file to container...";
+	ofn.lpstrInitialDir = "<LE CHEMIN COMPLET>\\ClientFiles";
+	ofn.Flags = OFN_PATHMUSTEXIST | OFN_HIDEREADONLY | OFN_OVERWRITEPROMPT;
+
+	if (GetOpenFileName(&ofn)) {
+		//SetWindowText(app.hMainDlg, ofn.lpstrFile);
+		FILE * hFile;
+		hFile = fopen(ofn.lpstrFile, "rb");	//Open for read only : binary mode
+
+		if (hFile == NULL) {
+			MessageBox(app.hMainDlg, ofn.lpstrFile, "Unable to open or create file !", MB_OK);
+			return;
+		}
+		//To complete...
+
+		unsigned int fileTest;
+
+		// FileTypeID_HIGH
+		fread(&fileTest, sizeof(app.fileTypeID_HIGH), 1, hFile);
+		if (fileTest != 0x01200911) {
+			MessageBox(app.hMainDlg, ofn.lpstrFile, "File Incorrect !", MB_OK);
+			return;
+		}
+
+		// FileTypeID_LOW
+		fread(&fileTest, sizeof(app.fileTypeID_LOW), 1, hFile);
+		if (fileTest != 0x01200613) {
+			MessageBox(app.hMainDlg, ofn.lpstrFile, "File Incorrect !", MB_OK);
+			return;
+		}
+
+		//Extension
+		char buf[5];
+		fread(buf, sizeof(char), 4, hFile);
+		buf[4] = '\0';
+		if (strcmp(buf, ".spi") != 0) {
+			MessageBox(app.hMainDlg, ofn.lpstrFile, "Extension Incorrect !", MB_OK);
+			return;
+		}
+
+		//NB_FIELDS
+		int fields;
+		fread(&fields, sizeof(int), 1, hFile);
+
+
+		//NB_CLIENTS
+		int nbAliens;
+		int getX, getY;
+		fread(&nbAliens, sizeof(int), 1, hFile);
+		app.pAliens = ContainerDel(app.pAliens);
+		app.pAliens = ContainerNew((t_ptfV)AlienDel);
+
+		app.pShips = ContainerDel(app.pShips);
+		app.pShips = ContainerNew((t_ptfV)AlienDel);
+
+		for (int k = 0; k < nbAliens; k++){
+			getX = AlienUnSerialize(hFile);
+			getY = AlienUnSerialize(hFile);
+
+			ContainerPushback(
+				app.pAliens,
+				AlienNew(
+						getX,
+						getY,
+						ALIEN_SIZE,
+						ALIEN_SIZE,
+						ALIEN_HOT_RATIO_X,
+						ALIEN_HOT_RATIO_Y,
+						ALIEN_SPEED_HRZ,
+						0
+				)
+			);
+		}
+
+		fread(buf, sizeof(int), 1, hFile);
+
+		for (int k = 0; k < atoi(buf); k++){
+			ContainerPushback(
+				app.pShips,
+				ShipNew(
+					(app.ptWindowSize.x-SPACESHIP_SIZE)/2,
+					app.ptWindowSize.y-MAIN_WINDOW_PADDING_BOT-SPACESHIP_SIZE,
+					SPACESHIP_SIZE,
+					SPACESHIP_SIZE,
+					SPACESHIP_SIZE/2,
+					0,
+					0,
+					0
+				)
+			);
+		}
+
+
+		fclose(hFile);
+	}
+
+
+
 }

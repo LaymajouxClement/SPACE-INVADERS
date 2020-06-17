@@ -13,12 +13,12 @@
 
 
 #include "app.h"
-#include "menu.h"
 
 int main(void) {
 	fprintf(stdout, "================ENTER SpaceInvaders================\n");
 
 	AppNew();
+	MenuRun();
 	AppRun();
 	AppDel();
 

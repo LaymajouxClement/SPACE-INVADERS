@@ -29,3 +29,9 @@ s_alien*AlienMoveX(s_alien*pAlien,int *scroll);
 s_alien*AlienReverseSpeedX(s_alien*pAlien,int scrollX);
 
 SDL_Rect AlienGetCoordinates(s_alien*pAlien);
+
+s_alien*AlienSerialize(s_alien*pAlien, FILE*hFile);
+
+int AlienUnSerialize(FILE*hFile);
+
+
